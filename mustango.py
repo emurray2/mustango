@@ -239,16 +239,16 @@ class Mustango:
         folder = os.path.join(self.path, subdir)
         os.makedirs(folder, exist_ok=True)
 
-    if self.use_tensorizer:
-        tensor_path = os.path.join(folder, f"{base_name}.tensors")
-        print(f"💾 Saving tensorized {label} to {tensor_path}")
-        serializer = TensorSerializer(tensor_path)
-        serializer.write_module(model)
-        serializer.close()
-    else:
-        pt_path = os.path.join(folder, f"{base_name}.bin")
-        print(f"💾 Saving {label} to {pt_path}")
-        torch.save(model.state_dict(), pt_path)
+        if self.use_tensorizer:
+            tensor_path = os.path.join(folder, f"{base_name}.tensors")
+            print(f"💾 Saving tensorized {label} to {tensor_path}")
+            serializer = TensorSerializer(tensor_path)
+            serializer.write_module(model)
+            serializer.close()
+        else:
+            pt_path = os.path.join(folder, f"{base_name}.bin")
+            print(f"💾 Saving {label} to {pt_path}")
+            torch.save(model.state_dict(), pt_path)
 
     def generate(self, prompt, steps=100, guidance=3, samples=1, disable_progress=True):
         with torch.no_grad():
