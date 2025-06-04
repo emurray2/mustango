@@ -16,46 +16,66 @@ from models import MusicAudioDiffusion
 
 
 class MusicFeaturePredictor:
-    def __init__(self, path, device="cuda:0", cache_dir=None, local_files_only=False):
-        self.beats_tokenizer = AutoTokenizer.from_pretrained(
-            "microsoft/deberta-v3-large",
-            cache_dir=cache_dir,
-            local_files_only=local_files_only,
-        )
-        self.beats_model = DebertaV2ForTokenClassificationRegression.from_pretrained(
-            "microsoft/deberta-v3-large",
-            cache_dir=cache_dir,
-            local_files_only=local_files_only,
-        )
-        self.beats_model.eval()
-        self.beats_model.to(device)
+    def __init__(self, path, device="cuda:0", use_tensorizer=True):
+        self.device = device
+        self.use_tensorizer = use_tensorizer
 
-        beats_ckpt = f"{path}/beats/microsoft-deberta-v3-large.pt"
-        beats_weight = torch.load(beats_ckpt, map_location="cpu")
-        self.beats_model.load_state_dict(beats_weight)
+        # --- Beats (DeBERTa) ---
+        beats_dir = os.path.join(path, "beats")
+        if not use_tensorizer:
+            snapshot = snapshot_download("microsoft/deberta-v3-large", cache_dir=beats_dir, local_files_only=False)
+            if snapshot != beats_dir:
+                self._move_snapshot_contents(snapshot, beats_dir)
+        self.beats_tokenizer = AutoTokenizer.from_pretrained(beats_dir)
 
-        self.chords_tokenizer = AutoTokenizer.from_pretrained(
-            "google/flan-t5-large",
-            cache_dir=cache_dir,
-            local_files_only=local_files_only,
-        )
-        self.chords_model = T5ForConditionalGeneration.from_pretrained(
-            "google/flan-t5-large",
-            cache_dir=cache_dir,
-            local_files_only=local_files_only,
-        )
-        self.chords_model.eval()
-        self.chords_model.to(device)
+        if use_tensorizer:
+            print("🔁 Loading tensorized DeBERTa for beats...")
+            config = DebertaV2ForTokenClassificationRegression.config_class.from_pretrained(beats_dir)
+            self.beats_model = DebertaV2ForTokenClassificationRegression(config)
+            TensorDeserializer(os.path.join(beats_dir, "deberta.tensors")).load_into_module(self.beats_model)
+        else:
+            print("📦 Loading standard DeBERTa .bin weights...")
+            self.beats_model = DebertaV2ForTokenClassificationRegression.from_pretrained(beats_dir)
+            self.beats_model.load_state_dict(torch.load(os.path.join(beats_dir, "microsoft-deberta-v3-large.pt"), map_location="cpu"))
 
-        chords_ckpt = f"{path}/chords/flan-t5-large.bin"
-        chords_weight = torch.load(chords_ckpt, map_location="cpu")
-        self.chords_model.load_state_dict(chords_weight)
+        self.beats_model.to(device).eval()
+
+        # --- Chords (T5) ---
+        chords_dir = os.path.join(path, "chords")
+        if not use_tensorizer:
+            snapshot = snapshot_download("google/flan-t5-large", cache_dir=chords_dir, local_files_only=False)
+            if snapshot != chords_dir:
+                self._move_snapshot_contents(snapshot, chords_dir)
+        self.chords_tokenizer = AutoTokenizer.from_pretrained(chords_dir)
+
+        if use_tensorizer:
+            print("🔁 Loading tensorized T5 for chords...")
+            config = T5ForConditionalGeneration.config_class.from_pretrained(chords_dir)
+            self.chords_model = T5ForConditionalGeneration(config)
+            TensorDeserializer(os.path.join(chords_dir, "t5.tensors")).load_into_module(self.chords_model)
+        else:
+            print("📦 Loading standard T5 .bin weights...")
+            self.chords_model = T5ForConditionalGeneration.from_pretrained(chords_dir)
+            self.chords_model.load_state_dict(torch.load(os.path.join(chords_dir, "flan-t5-large.bin"), map_location="cpu"))
+
+        self.chords_model.to(device).eval()
+
+    def _move_snapshot_contents(self, src, dst):
+        print(f"📦 Moving snapshot files from {src} → {dst}")
+        for root, dirs, files in os.walk(src):
+            for file in files:
+                src_file = os.path.join(root, file)
+                rel_path = os.path.relpath(src_file, src)
+                dst_file = os.path.join(dst, rel_path)
+                os.makedirs(os.path.dirname(dst_file), exist_ok=True)
+                shutil.copy2(src_file, dst_file)
+        print("✅ Files moved")
 
     def generate_beats(self, prompt):
         tokenized = self.beats_tokenizer(
             prompt, max_length=512, padding=True, truncation=True, return_tensors="pt"
         )
-        tokenized = {k: v.to(self.beats_model.device) for k, v in tokenized.items()}
+        tokenized = {k: v.to(self.device) for k, v in tokenized.items()}
 
         with torch.no_grad():
             out = self.beats_model(**tokenized)
@@ -74,21 +94,10 @@ class MusicFeaturePredictor:
         )
 
         intervals = np.cumsum(intervals)
-        predicted_beats_times = []
-        for t in intervals:
-            if t < 10:
-                predicted_beats_times.append(round(t, 2))
-            else:
-                break
-        predicted_beats_times = list(np.array(predicted_beats_times)[:50])
+        predicted_beats_times = [round(t, 2) for t in intervals if t < 10][:50]
 
-        if len(predicted_beats_times) == 0:
-            predicted_beats = [[], []]
-        else:
-            beat_counts = []
-            for i in range(len(predicted_beats_times)):
-                beat_counts.append(float(1.0 + np.mod(i, max_beat)))
-            predicted_beats = [[predicted_beats_times, beat_counts]]
+        beat_counts = [float(1.0 + np.mod(i, max_beat)) for i in range(len(predicted_beats_times))]
+        predicted_beats = [[predicted_beats_times, beat_counts]] if predicted_beats_times else [[], []]
 
         return max_beat, predicted_beats_times, predicted_beats
 
@@ -97,7 +106,7 @@ class MusicFeaturePredictor:
 
         chords_prompt = "Caption: {} \\n Timestamps: {} \\n Max Beat: {}".format(
             prompt,
-            " , ".join([str(round(t, 2)) for t in predicted_beats_times]),
+            " , ".join(map(str, predicted_beats_times)),
             max_beat,
         )
 
@@ -108,7 +117,7 @@ class MusicFeaturePredictor:
             truncation=True,
             return_tensors="pt",
         )
-        tokenized = {k: v.to(self.chords_model.device) for k, v in tokenized.items()}
+        tokenized = {k: v.to(self.device) for k, v in tokenized.items()}
 
         generated_chords = self.chords_model.generate(
             input_ids=tokenized["input_ids"],
@@ -128,11 +137,16 @@ class MusicFeaturePredictor:
 
         predicted_chords, predicted_chords_times = [], []
         for item in generated_chords:
-            c, ct = item.split(" at ")
-            predicted_chords.append(c)
-            predicted_chords_times.append(float(ct))
+            if " at " in item:
+                try:
+                    chord, timestamp = item.split(" at ")
+                    predicted_chords.append(chord.strip())
+                    predicted_chords_times.append(float(timestamp.strip()))
+                except ValueError:
+                    continue
 
         return predicted_beats, predicted_chords, predicted_chords_times
+
 
 
 class Mustango:
