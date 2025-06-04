@@ -170,7 +170,7 @@ class Mustango:
             self.model = MusicAudioDiffusion(
                 main_config["text_encoder_name"],
                 main_config["scheduler_name"],
-                unet_model_config_path=os.path.join(self.path, "configs/music_diffusion_model_config.json"),
+                unet_model_config_path=os.path.join(path, "configs/music_diffusion_model_config.json"),
             ).to(device)
             # --- Get the weights ---
             vae_weights = torch.load(
