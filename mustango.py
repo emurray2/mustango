@@ -203,7 +203,7 @@ class Mustango:
             main_config["scheduler_name"], subfolder="scheduler"
         )
 
-        self.music_model = MusicFeaturePredictor(self.path, device=device, local_files_only=True)
+        self.music_model = MusicFeaturePredictor(self.path, device=device, use_tensorizer=use_tensorizer)
 
         print("✅ Mustango initialized using", "Tensorizer" if use_tensorizer else "torch.load")
 
