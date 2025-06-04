@@ -143,6 +143,10 @@ class Mustango:
     ):
         self.device = device
         self.first_time_download = first_time_download
+        self.music_model = None
+        self.vae = None
+        self.stft = None
+        self.model = None
 
         if first_time_download:
             # --- Download model ---
@@ -214,14 +218,14 @@ class Mustango:
         )
 
     def _load_component(self, model, path, subdir, base_name):
-        folder = os.path.join(self.path, subdir)
+        folder = os.path.join(path, subdir)
         tensor_path = os.path.join(folder, f"{base_name}.tensors")
         print(f"🔁 Loading tensorized {base_name} from {tensor_path}")
         deserializer = TensorDeserializer(tensor_path)
         deserializer.load_into_module(model)
 
     def _save_component(self, model, path, subdir, base_name):
-        folder = os.path.join(self.path, subdir)
+        folder = os.path.join(path, subdir)
         os.makedirs(folder, exist_ok=True)
         tensor_path = os.path.join(folder, f"{base_name}.tensors")
         print(f"💾 Saving tensorized {base_name} to {tensor_path}")
