@@ -168,32 +168,20 @@ class Mustango:
             unet_model_config_path=os.path.join(self.path, "configs/music_diffusion_model_config.json"),
         ).to(device)
 
-        if first_time_download:
-            # --- Get the weights ---
-            vae_weights = torch.load(
-            f"{self.path}/vae/pytorch_model_vae.bin", map_location=device
-            )
-            stft_weights = torch.load(
-                f"{self.path}/stft/pytorch_model_stft.bin", map_location=device
-            )
-            main_weights = torch.load(
-                f"{self.path}/ldm/pytorch_model_ldm.bin", map_location=device
-            )
-            # --- Load weights into models ---
-            self.vae.load_state_dict(vae_weights)
-            self.stft.load_state_dict(stft_weights)
-            self.model.load_state_dict(main_weights)
-            # --- Serialize the models (for faster loading later) ---
-            self._save_component(self.vae, self.path, "vae", "pytorch_model_vae")
-            self._save_component(self.stft, self.path, "stft", "pytorch_model_stft")
-            self._save_component(self.model, self.path, "ldm", "pytorch_model_ldm")
-        else:
-            # --- Get path without downloading ---
-            print(f"Loading {name} using tensorizer ...")
-             # --- Deserialize weights (for faster loading) ---
-            self._load_component(self.vae, self.path, "vae", "pytorch_model_vae")
-            self._load_component(self.stft, self.path, "stft", "pytorch_model_stft")
-            self._load_component(self.model, self.path, "ldm", "pytorch_model_ldm")
+         # --- Get the weights ---
+        vae_weights = torch.load(
+        f"{self.path}/vae/pytorch_model_vae.bin", map_location=device
+        )
+        stft_weights = torch.load(
+            f"{self.path}/stft/pytorch_model_stft.bin", map_location=device
+        )
+        main_weights = torch.load(
+            f"{self.path}/ldm/pytorch_model_ldm.bin", map_location=device
+        )
+        # --- Load weights into models ---
+        self.vae.load_state_dict(vae_weights)
+        self.stft.load_state_dict(stft_weights)
+        self.model.load_state_dict(main_weights)
 
         print("Successfully loaded checkpoint from:", name)
 
