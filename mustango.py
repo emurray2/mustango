@@ -203,6 +203,18 @@ class Mustango:
             self.music_model = MusicFeaturePredictor(
                 self.path, device, cache_dir=cache_dir, local_files_only=True
             )
+            # --- Load configs ---
+            vae_config = json.load(open(f"{self.path}/configs/vae_config.json"))
+            stft_config = json.load(open(f"{self.path}/configs/stft_config.json"))
+            main_config = json.load(open(f"{self.path}/configs/main_config.json"))
+            # --- Instantiate models ---
+            self.vae = AutoencoderKL(**vae_config).to(device)
+            self.stft = TacotronSTFT(**stft_config).to(device)
+            self.model = MusicAudioDiffusion(
+                main_config["text_encoder_name"],
+                main_config["scheduler_name"],
+                unet_model_config_path=os.path.join(self.path, "configs/music_diffusion_model_config.json"),
+            ).to(device)
              # --- Deserialize weights (for faster loading) ---
             self._load_component(self.vae, self.path, "vae", "pytorch_model_vae")
             self._load_component(self.stft, self.path, "stft", "pytorch_model_stft")
