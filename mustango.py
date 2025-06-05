@@ -143,36 +143,32 @@ class Mustango:
     ):
         self.device = device
         self.first_time_download = first_time_download
-        self.music_model = None
-        self.path = None
-        self.vae = None
-        self.stft = None
-        self.model = None
+
+        # --- Download model ---
+        print(f"Downloading {name} into {cache_dir} ...")
+        self.path = snapshot_download(
+            repo_id=name,
+            cache_dir=cache_dir,
+            local_files_only=not first_time_download,
+        )
+        # --- Create music predictor ---
+        self.music_model = MusicFeaturePredictor(
+            self.path, device, cache_dir=cache_dir, local_files_only=not first_time_download
+        )
+        # --- Load configs ---
+        vae_config = json.load(open(f"{self.path}/configs/vae_config.json"))
+        stft_config = json.load(open(f"{self.path}/configs/stft_config.json"))
+        main_config = json.load(open(f"{self.path}/configs/main_config.json"))
+        # --- Instantiate models ---
+        self.vae = AutoencoderKL(**vae_config).to(device)
+        self.stft = TacotronSTFT(**stft_config).to(device)
+        self.model = MusicAudioDiffusion(
+            main_config["text_encoder_name"],
+            main_config["scheduler_name"],
+            unet_model_config_path=os.path.join(self.path, "configs/music_diffusion_model_config.json"),
+        ).to(device)
 
         if first_time_download:
-            # --- Download model ---
-            print(f"Downloading {name} into {cache_dir} ...")
-            self.path = snapshot_download(
-                repo_id=name,
-                cache_dir=cache_dir,
-                local_files_only=False,
-            )
-            # --- Create music predictor ---
-            self.music_model = MusicFeaturePredictor(
-                self.path, device, cache_dir=cache_dir, local_files_only=False
-            )
-            # --- Load configs ---
-            vae_config = json.load(open(f"{self.path}/configs/vae_config.json"))
-            stft_config = json.load(open(f"{self.path}/configs/stft_config.json"))
-            main_config = json.load(open(f"{self.path}/configs/main_config.json"))
-            # --- Instantiate models ---
-            self.vae = AutoencoderKL(**vae_config).to(device)
-            self.stft = TacotronSTFT(**stft_config).to(device)
-            self.model = MusicAudioDiffusion(
-                main_config["text_encoder_name"],
-                main_config["scheduler_name"],
-                unet_model_config_path=os.path.join(self.path, "configs/music_diffusion_model_config.json"),
-            ).to(device)
             # --- Get the weights ---
             vae_weights = torch.load(
             f"{self.path}/vae/pytorch_model_vae.bin", map_location=device
@@ -194,27 +190,6 @@ class Mustango:
         else:
             # --- Get path without downloading ---
             print(f"Loading {name} using tensorizer ...")
-            self.path = snapshot_download(
-                repo_id=name,
-                cache_dir=cache_dir,
-                local_files_only=True,
-            )
-            # --- Create music predictor ---
-            self.music_model = MusicFeaturePredictor(
-                self.path, device, cache_dir=cache_dir, local_files_only=True
-            )
-            # --- Load configs ---
-            vae_config = json.load(open(f"{self.path}/configs/vae_config.json"))
-            stft_config = json.load(open(f"{self.path}/configs/stft_config.json"))
-            main_config = json.load(open(f"{self.path}/configs/main_config.json"))
-            # --- Instantiate models ---
-            self.vae = AutoencoderKL(**vae_config).to(device)
-            self.stft = TacotronSTFT(**stft_config).to(device)
-            self.model = MusicAudioDiffusion(
-                main_config["text_encoder_name"],
-                main_config["scheduler_name"],
-                unet_model_config_path=os.path.join(self.path, "configs/music_diffusion_model_config.json"),
-            ).to(device)
              # --- Deserialize weights (for faster loading) ---
             self._load_component(self.vae, self.path, "vae", "pytorch_model_vae")
             self._load_component(self.stft, self.path, "stft", "pytorch_model_stft")
