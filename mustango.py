@@ -188,9 +188,9 @@ class Mustango:
             self.stft.load_state_dict(stft_weights)
             self.model.load_state_dict(main_weights)
             # --- Serialize the models (for faster loading later) ---
-            self._save_component(self.vae, self.path, "vae", "pytorch_model_vae", "VAE")
-            self._save_component(self.stft, self.path, "stft", "pytorch_model_stft", "STFT")
-            self._save_component(self.model, self.path, "ldm", "pytorch_model_ldm", "LDM")
+            self._save_component(self.vae, self.path, "vae", "pytorch_model_vae")
+            self._save_component(self.stft, self.path, "stft", "pytorch_model_stft")
+            self._save_component(self.model, self.path, "ldm", "pytorch_model_ldm")
         else:
             # --- Get path without downloading ---
             print(f"Loading {name} using tensorizer ...")
@@ -204,9 +204,9 @@ class Mustango:
                 self.path, device, cache_dir=cache_dir, local_files_only=True
             )
              # --- Deserialize weights (for faster loading) ---
-            self._load_component(self.vae, self.path, "vae", "pytorch_model_vae", "VAE")
-            self._load_component(self.stft, self.path, "stft", "pytorch_model_stft", "STFT")
-            self._load_component(self.model, self.path, "ldm", "pytorch_model_ldm", "LDM")
+            self._load_component(self.vae, self.path, "vae", "pytorch_model_vae")
+            self._load_component(self.stft, self.path, "stft", "pytorch_model_stft")
+            self._load_component(self.model, self.path, "ldm", "pytorch_model_ldm")
 
         print("Successfully loaded checkpoint from:", name)
 
